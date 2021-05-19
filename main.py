@@ -5,9 +5,18 @@ from tensorflow.keras.optimizers import SGD
 from tensorflow.keras.applications import ResNet50
 import cv2
 import os
+from imutils import paths
+
 
 tipos = ['Abuse','Arrest','Arson','Assault','Burglary','Explosion','Fighting','Normal_Videos_event','RoadAccidents','Robbery','Shooting','Shoplifting','Stealing','Vandalism']
 
+pathing = []
+for x in tipos:
+    pathing.append(list(paths.list_files(f'Videos/{x}')))
+
+
+def prep():
+    pass
 
 
 def modelo(output = 14):

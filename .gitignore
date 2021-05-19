@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 Videos/
 Anomaly_Detection_splits/
+Frames/
 
 # C extensions
 *.so
