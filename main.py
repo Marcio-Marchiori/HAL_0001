@@ -1,15 +1,11 @@
-from pandas.core import frame
-from tensorflow.keras.preprocessing.image import ImageDataGenerator,img_to_array,load_img
-from tensorflow.keras.layers import Dropout, Flatten, Dense, Input, AveragePooling2D
+from tensorflow.keras.preprocessing.image import img_to_array,load_img
+from tensorflow.keras.layers import Conv3D, ConvLSTM2D, Conv3DTranspose
+from tensorflow.keras.callbacks import ModelCheckpoint,EarlyStopping
 from tensorflow.keras.models import Model
-from tensorflow.keras.optimizers import SGD
-from tensorflow.keras.applications import ResNet50
+from tensorflow.keras import Sequential
 import cv2
-import os
 from imutils import paths
 import numpy as np
-from sklearn.preprocessing import StandardScaler
-from tensorflow.python.ops.numpy_ops.np_array_ops import array
 
 
 def prep(path):
@@ -17,25 +13,26 @@ def prep(path):
     rgb_cinza = 0.2989*imagem[:,:,0]+0.5870*imagem[:,:,1]+0.1140*imagem[:,:,2]
     imagens_cinza.append(rgb_cinza)
 
-def modelo(output = 14):
-    modelo_base_RES = ResNet50(weights="imagenet", include_top=False, input_tensor=Input(shape=(224, 224, 3)))
-    model_head = modelo_base_RES.output
-    model_head = AveragePooling2D(pool_size=(7, 7))(model_head)
-    model_head = Flatten(name="flatten")(model_head)
-    model_head = Dense(512, activation="relu")(model_head)
-    model_head = Dropout(0.5)(model_head)
-    model_head = Dense(output, activation="softmax")(model_head)
-    model = Model(inputs=modelo_base_RES.input,outputs=model_head)
+def modelo():
+    model=Sequential()
+    model.add(Conv3D(filters=128,kernel_size=(11,11,1),strides=(4,4,1),padding='valid',input_shape=(227,227,10,1),activation='tanh'))
+    model.add(Conv3D(filters=64,kernel_size=(5,5,1),strides=(2,2,1),padding='valid',activation='tanh'))
+    model.add(ConvLSTM2D(filters=64,kernel_size=(3,3),strides=1,padding='same',dropout=0.4,recurrent_dropout=0.3,return_sequences=True))
+    model.add(ConvLSTM2D(filters=32,kernel_size=(3,3),strides=1,padding='same',dropout=0.3,return_sequences=True))
+    model.add(ConvLSTM2D(filters=64,kernel_size=(3,3),strides=1,return_sequences=True, padding='same',dropout=0.5))
+    model.add(Conv3DTranspose(filters=128,kernel_size=(5,5,1),strides=(2,2,1),padding='valid',activation='tanh'))
+    model.add(Conv3DTranspose(filters=1,kernel_size=(11,11,1),strides=(4,4,1),padding='valid',activation='tanh'))
+    model.compile(optimizer='adam',loss='mean_squared_error',metrics=['accuracy'])
     return model
 
-x = modelo()
 
-def array_processing(array_process):
-    array_process = np.array(imagens_cinza)
+def array_processing(imagens_use):
+    array_process = np.array(imagens_use)
     x,y,z = array_process.shape
     array_process.resize(y,z,x)
     array_process = np.clip((array_process-array_process.mean())/array_process.std(),0,1)
     np.save('training_data.npy',array_process)
+
 
 def video_to_frame(files):
     # Gets one frame every t
@@ -50,7 +47,7 @@ def video_to_frame(files):
             if ret:
                 cami = video.split(sep='\\')[1].replace('.avi','')+'frame'+str(count)+'.jpg'
                 cv2.imwrite(cami, frame)
-                count += 2 # i.e. at 15 fps, this advances one second
+                count += 1 # i.e. at 15 fps, this advances one second
                 cap.set(1, count)
             else:
                 cap.release()
@@ -66,4 +63,22 @@ for x in image_list:
 array_processing(imagens_cinza)
 
 
+def training_data_load_reshape():
+    dados_treino =np.load('training_data.npy')
+    frame = dados_treino.shape[2]
+    frame = frame-frame%10
+    dados_treino = dados_treino[:,:,:frame]
+    dados_treino = dados_treino.reshape(-1,227,227,10)
+    dados_treino = np.expand_dims(dados_treino,axis=4)
+    dados_alvo = dados_treino.copy()
+    return (dados_treino,dados_alvo)
 
+dados_train,dados_tgt = training_data_load_reshape()
+
+sek = modelo()
+
+callback_early_stopping = EarlyStopping(monitor='val_loss', patience=3)
+
+sek.fit(dados_train,dados_tgt, batch_size=1,epochs=6,callbacks = [callback_early_stopping],verbose=1, use_multiprocessing=True)
+
+sek.save('model')
