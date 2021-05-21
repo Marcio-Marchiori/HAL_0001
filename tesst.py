@@ -4,6 +4,7 @@ from tensorflow.keras.models import load_model
 import argparse
 from PIL import Image
 import imutils
+from numpy.random import randint
 
 
 def mean_squared_loss(x1,x2):
@@ -26,7 +27,7 @@ while cap.isOpened():
     imagedump=[]
     ret,frame=cap.read()
 
-
+    x=0
     for i in range(10):
         ret,frame=cap.read()
         image = imutils.resize(frame,width=1000,height=1200)
@@ -36,7 +37,7 @@ while cap.isOpened():
         gray=(gray-gray.mean())/gray.std()
         gray=np.clip(gray,0,1)
         imagedump.append(gray)
-
+    x,j =cap.read()
     imagedump=np.array(imagedump)
 
     imagedump.resize(227,227,10)
@@ -57,6 +58,11 @@ while cap.isOpened():
         #print(loss)
         print('Abnormal Event Detected')
         cv2.putText(image,"Abnormal Event",(220,100),cv2.FONT_HERSHEY_SIMPLEX,2,(0,0,255),4)
+        cv2.imwrite(str(randint(500000,size=1))+'.jpg', image)
+        x+=1
+    else:
+        cv2.imwrite(str(randint(500000,size=1))+'.jpg', image)
+        x+=1
 
     cv2.imshow("video",image)
 
